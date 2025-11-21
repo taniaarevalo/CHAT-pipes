@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Vérification des paramètres
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "chat-bot destinataire [pseudo]" >&2
+  exit 1
+fi
+
+
+#recuperation des paramètres
+destinataire=$1
+pseudo="${2:-bot}"
+
+
+function chat-bot {
+	while read "message" ; do
+
+	IFS=' ' read -r -a mots <<< "$message"		#separe les mots en messages
+
+	#verifie si il a plus de 2 mots dans tableau ou 0
+	if [[ ${#mots[@]} -gt 3 || ${#mots[@]} -eq 1 ]]; then
+		echo -e "\xF0\x9F\xA4\x96\x20\x3F"
+		sleep 0.1
+
+	#verifie si il a 1 ou 2 mots dans tableau
+	elif [[ ${#mots[@]} -le 3 && ${#mots[@]} -gt 0 ]]; then
+		
+		# Lister les fichiers du répertoire courant
+		if [ "${mots[1]}" = "liste" ]; then
+			ls | while read 'fichier'; do
+				sleep 0.01 				# sans ca affichage etrange car acces concurent
+				echo "$fichier"
+			done
+
+		# Lire le contenu du fichier spécifié
+		elif [ "${mots[1]}" = "li" ]; then
+			if [ -f "${mots[2]}" ]; then
+				cat ${mots[2]} | while read "ligne"; do	#lit le contenus du fichier ligne par ligne
+					sleep 0.01
+					echo "$ligne"
+				done
+			else
+				echo "Erreur: fichier \"${mots[2]}\" introuvable"
+			fi
+
+		# Répondre avec le pseudo du destinataire
+		elif [ "${mots[1]} ${mots[2]}" = "qui suis-je" ]; then
+			sleep 0.1
+			echo "$destinataire"
+
+		# Terminer le chat-bot proprement
+		elif [ "${mots[1]} ${mots[2]}" = "au revoir" ]; then
+			kill -s SIGINT ${CHAT1_PID}
+			kill -s SIGINT ${CHAT_PID}
+			exit 0 
+
+		#verifie si dans liste bot et envois sinon message d'erreur
+		else
+			if [ -f liste-bot.txt ] ; then
+				i=1
+				while read 'ligne' ; do
+					read -a mots2 <<< "$ligne"
+					if [[ ${mots2[0]} == "${mots[1]}" ]]; then
+						echo "${ligne:${#mots2} + 1}"
+						sleep 0.1
+						i=0
+						break 
+					fi
+				done < liste-bot.txt
+			
+			elif [[ $i -eq  1 ]]; then
+				echo -e "\xF0\x9F\xA4\x96\x20\x3F"
+				sleep 0.1
+			fi
+		fi
+	fi
+
+	
+	 done <&"${CHAT[0]}" >&"${CHAT[1]}" #redirection de mon "bot"
+}
+
+
+coproc CHAT { ./chat "$pseudo" "$destinataire" --bot ; }
+./chat "$destinataire" "$pseudo" &
+CHAT1_PID=$!
+
+chat-bot
+
+
+#je n ai pas trouver pour les bonne redirection
